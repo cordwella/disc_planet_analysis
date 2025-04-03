@@ -96,7 +96,8 @@ class Athena3DSimulation(Simulation):
 		phi_p = self.athinput['problem'].get('phipl0', np.pi) + self.time * self.setup['omega0']
 
 		self.potential = potentials.SecondOrderSmoothedPotential(
-			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p, np.pi/2, self.setup['smoothing_length'])
+			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p, np.pi/2, 
+			self.setup['smoothing_length'])
 	
 		self.potential_2D = potentials.BesselTypePotential(
 			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p,
@@ -168,7 +169,9 @@ class Athena2DSimulation(Simulation):
 		if self.time < self.athinput['problem']['tramp'] * 2 * np.pi:
 			# Ramp setup
 			ramp  = 0.5*(1.0 - np.cos(np.pi * self.time / (self.athinput['problem']['tramp'] *  2 * np.pi)))
-		phi_p = self.athinput['problem'].get('phipl0', np.pi) + self.time * self.setup['omega0']
+
+		omegap = np.sqrt((self.setup['stellar_mass'] + self.setup['planet_mass']) * self.athinput['problem']['r0']**(-3))
+		phi_p = self.athinput['problem'].get('phipl0', np.pi) + self.time * omegap
 
 		# Check potential type and setup the relevant thing
 		pot_order = self.athinput['problem'].get('potential_order', 4)

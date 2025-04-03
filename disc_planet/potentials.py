@@ -144,7 +144,6 @@ class BesselTypeForcing(PlanetaryPotential):
 		self.phi_p = phi_p
 		self.H_p = H_p
 		self.height_slope = 1.5 + temperature_slope/2
-		print(smoothingB)
 		self.smoothingB = smoothingB
 
 
