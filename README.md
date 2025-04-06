@@ -4,8 +4,6 @@
 Python module for analysing the output of 2D and 3D planet-disc interaction simulations.
 Currently this has been tested for 3D PLUTO spherical and 2D & 3D Athena++ spherical simulations.
 
-Contributions via pull request are welcome.
-
 ## Installation
 
 This has been designed as a standard Python3 module and will be made installible with pip.
@@ -27,8 +25,8 @@ $\Phi_p$ is the potential of a planet (or generic a perturbing potential)
 
 Velocity is $v$
 
-## Usage Example 
 
+## Usage Examples 
 
 ### Process 2D simulation data
 
@@ -55,17 +53,18 @@ dictionary to the command line.
            'omega0': np.float64(1.0),
            'H0': np.float64(0.05),
            'smoothing_length': np.float64(0.0),
-           '2D_potential_type': 'BesselTypeForcing'},
- 'gap_timescale': np.float64(-7097.135954785253),
- 'total_torque_2D': np.float64(8.423336435410304e-08),
- 'inner_torque_2D': np.float64(5.010496707543883e-07),
- 'outer_torque_2D': np.float64(4.7176811825816574e-07),
- 'gap_inner_loc_2D': np.float32(0.9858743),
+           '2D_potential_type': 'BesselTypeForcing',
+           'potential_type': 'NoneType'},
+ 'gap_timescale_2D': np.float64(-82784.70698165598),
+ 'total_torque_2D': np.float64(8.253767074045289e-07),
+ 'inner_torque_2D': np.float64(2.2380648254000206e-06),
+ 'outer_torque_2D': np.float64(3.052301702754556e-06),
+ 'gap_inner_loc_2D': np.float32(0.99908847),
  'gap_outer_loc_2D': np.float32(1.0141662),
- 'gap_spacing_2D': np.float32(0.02829194),
- 'gap_inner_timescale_2D': np.float64(-8497.287093065679),
- 'gap_outer_timescale_2D': np.float64(-8088.894285830293),
- 'osl_torque_2D': np.float64(4.864088945062771e-07)}
+ 'gap_spacing_2D': np.float32(0.01507777),
+ 'gap_inner_timescale_2D': np.float64(-1.21272518096513e-05),
+ 'gap_outer_timescale_2D': np.float64(-1.5500776845279193e-05),
+ 'osl_torque_2D': np.float64(2.6451832640772883e-06)}
 ```
 
 
@@ -79,10 +78,72 @@ new_orbit.save_1d()
 pprint.pp(summary)
 ```
 
+Which will produce:
+```
+{'setup': {'surface_density_slope': -1,
+           'temperature_slope': 0,
+           'stellar_mass': 1.0,
+           'planet_mass': 3.125000000000001e-05,
+           'dimension': 3,
+           'R0': 1.0,
+           'R_p': 1.0,
+           'ramp_time': 10,
+           'omega0': np.float64(1.0),
+           'H0': np.float64(0.05),
+           'sigma_0': 1,
+           'rho_0': np.float64(7.978845608028654),
+           'flaring_index': 0.5,
+           'density_slope': -2.5,
+           'smoothing_length': 0.01,
+           '2D_potential_type': 'BesselTypePotential',
+           'potential_type': 'SecondOrderSmoothedPotential'},
+ 'gap_timescale_2D': np.float64(-85052.09317268865),
+ 'total_torque_2D': np.float64(4.363565199597769e-07),
+ 'inner_torque_2D': np.float64(2.350073666873991e-06),
+ 'outer_torque_2D': np.float64(2.7820512293123616e-06),
+ 'gap_inner_loc_2D': np.float32(0.9989905),
+ 'gap_outer_loc_2D': np.float32(1.0133314),
+ 'gap_spacing_2D': np.float32(0.014340937),
+ 'gap_inner_timescale_2D': np.float64(85052.09317268865),
+ 'gap_outer_timescale_2D': np.float64(50516.21982772132),
+ 'osl_torque_2D': np.float64(2.566062448093176e-06),
+ 'total_torque': np.float64(6.91096060784992e-07),
+ 'inner_torque': np.float64(2.4708106681366017e-06),
+ 'outer_torque': np.float64(3.153336274747061e-06),
+ 'osl_torque': np.float64(2.8120734714418316e-06),
+ 'gap_inner_loc': np.float32(0.9989905),
+ 'gap_outer_loc': np.float32(1.0133314),
+ 'gap_spacing': np.float32(0.014340937),
+ 'gap_timescale': np.float64(52998.78857978705),
+ 'gap_inner_timescale': np.float64(52998.78857978705),
+ 'gap_outer_timescale': np.float64(48295.036476036345)}
+```
+
+
+Alternatively you can take the significantly slower, but more correct, route of calculating this through integration along columns (rather than the default of spherical shells).
+```
+from disc_planet.athena import Athena3DSimulation
+import pprint
+new_orbit = Athena3DSimulation("test_data/3D_athena_test/", 10, 'athinput.potential_3d', intergration_method = 'column', output_folder='test_data/3D_athena_test/col_2_')
+summary = new_orbit.process_summary_outputs()
+new_orbit.save_1d()
+pprint.pp(summary)
+```
+
+### 3D PLUTO Simulation
+
+```
+from disc_planet.pluto import Pluto3DSimulation
+folder = "../disk-with-slurm/ziampras_data/iso/"
+new_orbit = Pluto3DSimulation(folder, 10)
+summary = new_orbit.process_summary_outputs()
+new_orbit.save_1d()
+new_orbit.save_2d()
+```
+
 
 ## Outputs 
-By default this will create a python pickle object detailing a single snapshot of the
-simulation at a given orbital id number.
+By default this code will save a python pickle with a dictionary containting 1D/2D data from the simulation.
 
 2-Dimensional Outputs:
 - 2D Vortensity
@@ -102,7 +163,6 @@ simulation at a given orbital id number.
 - Inner and Outer planetary torques
 - Gap Width
 
-
 ## Memory usage
 By default this will load entire copies of your 3D data into memory, as such it is a very 
 memory hungry application. For production size simulations it is unlikely to be able to run on local desktops.
@@ -110,9 +170,9 @@ memory hungry application. For production size simulations it is unlikely to be 
 
 ## Planned Features
 - [ ] Unit-tests and examples
-- [ ] PLUTO input class
+- [x] PLUTO input class
 - [ ] 3D Vortensity Calculation
 - [ ] Horseshoe width calculation
 - [ ] Logging
-- [ ] Klar type 3D potential
+- [x] Klar type 3D potential
 - [ ] FARGO3D Input class

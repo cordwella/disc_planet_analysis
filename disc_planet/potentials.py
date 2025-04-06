@@ -60,7 +60,33 @@ class SecondOrderSmoothedPotential(PlanetaryPotential):
 
 class KlarTypePotential(PlanetaryPotential):
 	# see: https://ui.adsabs.harvard.edu/abs/2006A%26A...445..747K/abstract
-	pass
+
+	def __init__(self, m_p, R_p, phi_p, theta_p, rsm):
+		self.rsm		= rsm
+		self.m_p		= m_p
+		self.R_p		= R_p
+		self.phi_p	    = phi_p
+		self.theta_p	= theta_p
+
+
+	def calculate_dPhidphi_3D(self, R, phi, theta):
+		R = R[:, None, None]
+		theta = theta[None, None, :]
+		phi = phi[None, :, None]
+
+
+		dr2 = (R * R + self.R_p**2 - 2 * R *self.R_p * np.sin(theta) * np.cos(phi - self.phi_p))
+		d = dr2**(1/2)
+
+		dPhidPhi = self.m_p * R * self.R_p * np.sin(theta) * np.sin(phi - self.phi_p)  * dr2**(-3/2)
+
+		inner_dPhidPhi = self.m_p/(2 * d**5) * (R * self.R_p * np.sin(theta) * np.sin(phi - self.phi_p)  
+			* (d**2 - 9 * self.rsm**2 ) )	
+
+		dPhidPhi[np.abs(d) < self.rsm] = inner_dPhidPhi[np.abs(d) < self.rsm]
+
+		return dPhidPhi
+
 
 
 ## Various 2D potentials
@@ -156,5 +182,5 @@ class BesselTypeForcing(PlanetaryPotential):
 		s2 = dr2/(4 * local_scale_height * local_scale_height)
 
 		dPhids2 = - self.gmp_root_2_pi/local_scale_height * (k0e(s2) - k1e(s2));
-	 
+
 		return dPhids2 * R * self.R_p * np.sin(phi - self.phi_p)/(2 * local_scale_height * local_scale_height)

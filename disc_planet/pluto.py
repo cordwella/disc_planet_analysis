@@ -1,7 +1,10 @@
+import logging
 import numpy as np
 
 from disc_planet.simulation import Simulation
 from disc_planet import potentials
+
+logger = logging.getLogger(__name__)
 
 
 def parse_pluto_ini(filename):
@@ -19,6 +22,7 @@ def parse_pluto_ini(filename):
 				config[line[0]] = line[1:]
 	return config
 
+
 class Pluto3DSimulation(Simulation):
 	"""
 	Load a 3D Pluto simulation
@@ -32,6 +36,7 @@ class Pluto3DSimulation(Simulation):
 
 	def __init__(self, folder, orbit_id, *args, **kwargs):
 		self.folder = folder
+		self.orbit_id = orbit_id
 
 		self.config = parse_pluto_ini(folder + 'pluto.ini')
 
@@ -61,7 +66,7 @@ class Pluto3DSimulation(Simulation):
 		# Pluto default RSM is 0.03 R
 		# Equation 55
 		# https://www.aanda.org/articles/aa/pdf/2012/09/aa19557-12.pdf
-		self.setup['smoothing_length'] = 0.5 * np.sqrt(self.setup['planet_mass']/self.setup['stellar_mass'])
+		self.setup['smoothing_length'] = 0.5 * (self.setup['planet_mass']/(3 * self.setup['stellar_mass']))**(1/3)
 
 		# self.config['Static Grid Output']
 
@@ -89,23 +94,21 @@ class Pluto3DSimulation(Simulation):
 		if self.config.get('output_dir'):
 			data_dir = folder + self.config['output_dir'].strip('./') + '/'
 
-		self.density = np.moveaxis(np.fromfile(f'{data_dir}rho.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1), [2, 1], [0, 2])
-		print(self.density.shape)
-		
+		self.density = np.moveaxis(np.fromfile(f'{data_dir}rho.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1), [2, 1], [0, 2])		
 		self.v_R = np.moveaxis(np.fromfile(f'{data_dir}vx1.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1),  [2, 1], [0, 2])
-		print(self.v_R.shape)
 		self.v_phi = np.moveaxis(np.fromfile(f'{data_dir}vx3.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1),  [2, 1], [0, 2])
-		print(self.v_phi.shape)
 
 		self.setup['ramp_time'] = float(self.config['GROWTH_ORBITS']) * 2 * np.pi
 		
 		ramp = 1
 		if self.time < self.setup['ramp_time']:
+			# TODO: Figure out the ramp setup for this simulation
+			logger.warning('Pluto ramping not yet setup')
 			ramp = 1
 
 		phi_p = 0
 
-		self.potential = potentials.SecondOrderSmoothedPotential(
+		self.potential = potentials.KlarTypePotential(
 			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p,
 			 np.pi/2, self.setup['smoothing_length'])
 	
@@ -186,8 +189,7 @@ class Pluto2DSimulation(Simulation):
 	
 		self.potential_2D = potentials.SecondOrderSmoothedPotential(
 			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p, 0,
-			self.setup['H0'], self.setup['temperature_slope'],
+			self.setup['H0'], 
 			self.setup['smoothing_length'])
 
 		super().__init__(*args, **kwargs)
-

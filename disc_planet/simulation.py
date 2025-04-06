@@ -277,7 +277,7 @@ class Simulation(object):
 			# this is a very slow approach but I also have a very slow brain
 			for r_i in range(self.R.shape[0]):
 				r_current = self.R[r_i]
-				z_interior = np.linspace(np.min(self.z[r_i, :]), np.max(self.z[r_i, :]), 
+				z_interior = -1 * np.linspace(np.max(self.z[r_i, :]), np.min(self.z[r_i, :]), 
 					self.theta.shape[0])
 				
 				r_sph_current = np.sqrt(r_current**2 + z_interior**2)
