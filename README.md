@@ -6,9 +6,16 @@ Currently this has been tested for 3D PLUTO spherical and 2D & 3D Athena++ spher
 
 ## Installation
 
-This has been designed as a standard Python3 module and will be made installible with pip.
+This has been designed as a standard Python3 module and in future will be made available from PyPI. You can either add this directory to your python path, or build and install from the source.
 
-Current dependencies are `numpy`, `scipy` and for Athena++ simulations `h5py`.
+If you add this to your Python path you will also have to install the following dependencies: `numpy`, `scipy` and for Athena++ simulations `h5py`.
+
+To build and install this package directly please run:
+```
+python3 -m pip install --upgrade build
+python3 -m build
+python3 -m pip install dist/disc_planet-0.0.1.tar.gz
+```
 
 ## Citing this repository
 If you use output from this module in your paper please cite this github repository directly as well as the relevant definitions/equations in:

@@ -1,0 +1,32 @@
+[build-system]
+requires = ["hatchling >= 1.26"]
+build-backend = "hatchling.build"
+
+[project]
+name = "disc_planet"
+version = "0.0.1"
+authors = [
+  { name="Amelia Cordwell", email="ajc356@cam.ac.uk" },
+]
+description = "Analysis Codes for Protoplanetary Disc Simulations"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+	"Private :: Do Not Upload",
+    "Programming Language :: Python :: 3",
+    "Development Status :: 3 - Alpha",
+    "License :: OSI Approved :: MIT License",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+license = "MIT"
+license-files = ["LICEN[CS]E*"]
+dependencies = [
+  "numpy",
+  "scipy",
+  "h5py" 
+]
+
+[project.urls]
+Homepage = "https://github.com/cordwella/disc_planet_analysis"
+Issues = "https://github.com/cordwella/disc_planet_analysis/issues"
