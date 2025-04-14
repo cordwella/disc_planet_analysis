@@ -37,6 +37,8 @@ class Simulation(object):
 	horseshoe_tmax      = 1000
 	horseshoe_max_iter	= 100
 
+	gap_analytic_ignore_outer_percent = 0.005
+
 
 	setup = {}
 	orbit_id = None
@@ -90,7 +92,15 @@ class Simulation(object):
 		self.horseshoe_tmax  = kwargs.get('horseshoe_tmax', self.horseshoe_tmax)
 		self.horseshoe_max_iter  = kwargs.get('horseshoe_max_iter', self.horseshoe_max_iter)
 
-		self.furthest_gap_distance = kwargs.get('furthest_gap_distance', self.setup['H0'] * 0.3)
+		# Furthest distance away from R_p that we expect the gap to be
+		self.gap_furthest_distance = kwargs.get('gap_furthest_distance', self.setup['H0'] * 3)
+	
+		# Smallest distance away from the planet we expect the gap to be
+		self.gap_smallest_distance = kwargs.get('gap_smallest_distance', self.setup['H0'] * 0.4)
+
+		# In the anayltic gap calculation cut $F_{dep}$ to zero at the outer/inner percent of the disc
+		# to account for numerical errors
+		self.gap_analytic_ignore_outer_percent = kwargs.get('gap_analytic_ignore_outer_percent', self.gap_analytic_ignore_outer_percent)
 
 
 
@@ -138,9 +148,13 @@ class Simulation(object):
 			self.F_dep	= self.T - self.F_wave
 			self.dF_depdR = self.dTdR - self.dF_wavedR
 
+			f_dep_to_use  = self.dF_depdR/self.surface_density_1D
+			f_dep_to_use[self.R < self.R[0] * (1 + self.gap_analytic_ignore_outer_percent)] = 0
+			f_dep_to_use[self.R > self.R[-1] * (1 - self.gap_analytic_ignore_outer_percent)] = 0
+
 			self.dsigmadt = non_local_change_in_density(
 				self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], self.setup['H0']/self.setup['R0'],
-				self.dF_depdR/self.surface_density_1D)
+				f_dep_to_use)
 
 		# Calculate dT/dR_2D
 		self.dTdR_2D = -1 * np.trapezoid(
@@ -161,9 +175,14 @@ class Simulation(object):
 		self.F_dep_2D	= self.T_2D - self.F_wave_2D
 		self.dF_depdR_2D = self.dTdR_2D - self.dF_wavedR_2D
 
+		f_dep_to_use  = self.dF_depdR_2D/self.surface_density_1D
+		f_dep_to_use[self.R < self.R[0] * (1 + self.gap_analytic_ignore_outer_percent)] = 0
+		f_dep_to_use[self.R > self.R[-1] * (1 - self.gap_analytic_ignore_outer_percent)] = 0
+
+
 		self.dsigmadt_2D = non_local_change_in_density(
 			self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], self.setup['H0']/self.setup['R0'],
-			self.dF_depdR_2D/self.surface_density_1D)
+			f_dep_to_use)
 
 		if self.include_vortensity or include_vortensity:
 			if self.vortensity is None:
@@ -178,11 +197,11 @@ class Simulation(object):
 			self.process_1d_outputs()
 
 		gap_timescale = -1/self.dsigmadt_2D[np.argmin( np.abs(self.R - self.setup['R_p']) )]
-		r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))]
-		r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))]
+		r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))]
+		r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))]
 		
-		inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))
-		outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))
+		inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))
+		outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))
 		r_id_inner_gap = np.argmin(self.dsigmadt_2D[inner_gap_mask])
 		r_id_outer_gap = np.argmin(self.dsigmadt_2D[outer_gap_mask])
 
@@ -223,11 +242,11 @@ class Simulation(object):
 			# Gap properties
 
 			gap_timescale = 1/self.dsigmadt[np.argmin( np.abs(self.R - self.setup['R_p']) )]
-			r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))]
-			r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))]
+			r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))]
+			r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))]
 			
-			inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))
-			outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))
+			inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))
+			outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))
 			r_id_inner_gap = np.argmin(self.dsigmadt[inner_gap_mask])
 			r_id_outer_gap = np.argmin(self.dsigmadt[outer_gap_mask])
 
