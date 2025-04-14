@@ -96,6 +96,7 @@ class Pluto3DSimulation(Simulation):
 
 		self.density = np.moveaxis(np.fromfile(f'{data_dir}rho.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1), [2, 1], [0, 2])		
 		self.v_R = np.moveaxis(np.fromfile(f'{data_dir}vx1.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1),  [2, 1], [0, 2])
+		self.v_theta = np.moveaxis(np.fromfile(f'{data_dir}vx2.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1),  [2, 1], [0, 2])
 		self.v_phi = np.moveaxis(np.fromfile(f'{data_dir}vx3.{orbit_id:04d}.dbl').reshape(NX3, NX2, NX1),  [2, 1], [0, 2])
 
 		self.setup['ramp_time'] = float(self.config['GROWTH_ORBITS']) * 2 * np.pi

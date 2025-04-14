@@ -5,7 +5,7 @@ import numpy as np
 from scipy.integrate import cumulative_trapezoid, solve_ivp
 from scipy.interpolate import RegularGridInterpolator
 
-from disc_planet.analytic_gap import non_local_change_in_density
+from disc_planet.utils import non_local_change_in_density, get_horseshoe_width
 
 
 logger = logging.getLogger(__name__)
@@ -20,27 +20,29 @@ class Simulation(object):
 
 	The format for v_R, v_phi, v_theta dens etc is a 3D numpy array 
 	where the first index is along R, the second along phi, and the third
-	along thetatheta_i	For consistency even 2D simulations must return the third column, 
-	except in the 2D implementations.
+	along theta.
 
-	2D implemations should represent either mass weighted averaged
-	velocities, or fully integrated values, and should be provided as 
-	2D numpy arrays.
-
-	Classes are free to implement their own preferred way of calculating
-	these values (e.g. small angle approximation). Integration along 
-	spheres under the small angle approximation may be done as default.
+	2D implemations should represent mass weighted average
+	velocities; they should be provided as 2D numpy arrays.
 	"""
 
 	dimension = None
 	intergration_method = 'spherical'
 
 	include_vortensity	  = False
+	use_2d_vortensity 	  = False
+	include_horseshoe	  = False
+
+	horseshoe_max_width = 0.2 # In units of r_p
+	horseshoe_tmax      = 1000
+	horseshoe_max_iter	= 100
+
 
 	setup = {}
 	orbit_id = None
-	potential    = None 
+	potential	= None 
 	potential_2D = None
+
 
 	# default data values
 	R = None
@@ -55,6 +57,7 @@ class Simulation(object):
 	v_theta = None
 
 	surface_density = None
+	vortensity = None
 	v_R_2D = None
 	v_phi_2D = None 
 
@@ -66,25 +69,43 @@ class Simulation(object):
 	dsigmadt = None
 
 	def __init__(self, *args, **kwargs):
+		if self.R is None:
+			raise Exception('Data not setup. This class is not designed to be used on its own and must be inherited from.')
+
 		self.output_folder = kwargs.get('output_folder', None)
 		if self.output_folder is None:
 			self.output_folder = self.folder
 		self.intergration_method = kwargs.get('intergration_method', self.intergration_method)
 
-		if self.R is None:
-			raise Exception('Data not setup. This class is not designed to be used on its own and must be inherited from.')
+		self.include_vortensity = kwargs.get('include_vortensity', self.include_vortensity)
+		self.use_2d_vortensity = kwargs.get('use_2d_vortensity', self.include_vortensity)
+
+		self.include_horseshoe = kwargs.get('include_horseshoe', self.include_horseshoe)
+
+		# Horseshoe calculation options
+		self.horseshoe_max_width = kwargs.get('horseshoe_max_width', self.horseshoe_max_width)
+		self.setup['R_p'] = self.setup.get('R_p', 1)
+		r_p_i = np.argmin(np.abs(self.R - self.setup['R_p']))
+		self.horseshoe_del_R = kwargs.get('horseshoe_del_R', (self.R[r_p_i + 1] - self.R[r_p_i]))
+		self.horseshoe_tmax  = kwargs.get('horseshoe_tmax', self.horseshoe_tmax)
+		self.horseshoe_max_iter  = kwargs.get('horseshoe_max_iter', self.horseshoe_max_iter)
+
+		self.furthest_gap_distance = kwargs.get('furthest_gap_distance', self.setup['H0'] * 0.3)
+
+
 
 	# Main computation logic will be contained in these
-	def process_all_details(self, *args, compute_vortensity=False, **kwargs):
+	def process_all_details(self, *args, include_vortensity=False, **kwargs):
 		self.reduce_to_2d(*args, **kwargs)
 
-		if compute_vortensity:
+		if include_vortensity or self.include_vortensity:
 			self.calculate_vortensity()
 		
 		self.process_1d_outputs(*args, **kwargs)
 		return self.process_summary_outputs(*args, **kwargs)
 
-	def process_1d_outputs(self, *args, **kwargs):
+	def process_1d_outputs(self, *args, inclde_vortensity=False,
+						   **kwargs):
 		# Depends on process all details having been calculated
 		if self.surface_density is None:
 			self.reduce_to_2d()
@@ -114,7 +135,7 @@ class Simulation(object):
 			self.dF_wavedR = np.gradient(self.F_wave, self.R)
 
 			# Combine all properties
-			self.F_dep    = self.T - self.F_wave
+			self.F_dep	= self.T - self.F_wave
 			self.dF_depdR = self.dTdR - self.dF_wavedR
 
 			self.dsigmadt = non_local_change_in_density(
@@ -144,20 +165,24 @@ class Simulation(object):
 			self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], self.setup['H0']/self.setup['R0'],
 			self.dF_depdR_2D/self.surface_density_1D)
 
-	def process_summary_outputs(self, *args, **kwargs):
+		if self.include_vortensity or include_vortensity:
+			if self.vortensity is None:
+				self.calculate_vortensity()
+
+			self.vortensity_1D = np.average(self.vortensity, axis=1)
+
+	def process_summary_outputs(self, *args, include_horseshoe=False, **kwargs):
 		# Depends on process_1d_outputs having run
 
 		if self.dsigmadt_2D is None:
 			self.process_1d_outputs()
 
-		furthest_gap_distance = self.setup['H0'] * 0.3	
-
-		gap_timescale = 1/self.dsigmadt_2D[np.argmin( np.abs(self.R - self.setup['R_p']) )]
-		r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - furthest_gap_distance))]
-		r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + furthest_gap_distance))]
+		gap_timescale = -1/self.dsigmadt_2D[np.argmin( np.abs(self.R - self.setup['R_p']) )]
+		r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))]
+		r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))]
 		
-		inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - furthest_gap_distance))
-		outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + furthest_gap_distance))
+		inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))
+		outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))
 		r_id_inner_gap = np.argmin(self.dsigmadt_2D[inner_gap_mask])
 		r_id_outer_gap = np.argmin(self.dsigmadt_2D[outer_gap_mask])
 
@@ -182,8 +207,8 @@ class Simulation(object):
 			'gap_inner_loc_2D': gap_inner_loc,
 			'gap_outer_loc_2D': gap_outer_loc,
 			'gap_spacing_2D': gap_outer_loc - gap_inner_loc,
-			'gap_inner_timescale_2D': gap_inner_depth,
-			'gap_outer_timescale_2D': gap_outer_depth,
+			'gap_inner_timescale_2D': -1/gap_inner_depth,
+			'gap_outer_timescale_2D': -1/gap_outer_depth,
 		}
 		
 		self.summary['osl_torque_2D'] = (self.summary['inner_torque_2D'] + self.summary['outer_torque_2D'])/2
@@ -198,11 +223,11 @@ class Simulation(object):
 			# Gap properties
 
 			gap_timescale = 1/self.dsigmadt[np.argmin( np.abs(self.R - self.setup['R_p']) )]
-			r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - furthest_gap_distance))]
-			r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + furthest_gap_distance))]
+			r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))]
+			r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))]
 			
-			inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - furthest_gap_distance))
-			outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + furthest_gap_distance))
+			inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.furthest_gap_distance))
+			outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.furthest_gap_distance))
 			r_id_inner_gap = np.argmin(self.dsigmadt[inner_gap_mask])
 			r_id_outer_gap = np.argmin(self.dsigmadt[outer_gap_mask])
 
@@ -215,25 +240,44 @@ class Simulation(object):
 			self.summary['gap_inner_loc'] =  gap_inner_loc
 			self.summary['gap_outer_loc'] =  gap_outer_loc
 			self.summary['gap_spacing']   =  gap_outer_loc - gap_inner_loc
-			self.summary['gap_timescale'] = gap_timescale
-			self.summary['gap_inner_timescale'] = 1/gap_inner_depth
-			self.summary['gap_outer_timescale'] = 1/gap_outer_depth
+			self.summary['gap_timescale'] = -gap_timescale
+			self.summary['gap_inner_timescale'] = -1/gap_inner_depth
+			self.summary['gap_outer_timescale'] = -1/gap_outer_depth
+
+		if self.include_horseshoe or include_horseshoe:
+			# TODO: Need to have horseshoe configuration options
+			hs_width, hs_outer, hs_inner = get_horseshoe_width(
+				self.R, self.phi, 
+				self.v_R_2D, self.v_phi_2D,
+				delR = self.horseshoe_del_R,
+				tmax = self.horseshoe_tmax,
+				iterations = self.horseshoe_max_iter,
+				rmax = (1 + self.horseshoe_max_width/2) * self.setup['R_p'],
+				rmin = (1 + self.horseshoe_max_width/2) * self.setup['R_p'])
+
+			self.summary['horseshoe_width']		= hs_width	   * self.setup['R_p']
+			self.summary['horseshoe_inner_loc']	= hs_inner * self.setup['R_p']
+			self.summary['horseshoe_outer_loc']	= hs_outer * self.setup['R_p']
 
 		return self.summary
 
 
 	def calculate_vortensity(self):
-		logger.warning('Currently only computing 2D vortensity equivalent')
-		return (np.gradient( self.v_phi_2D * self.R[None, :], self.R, axis=1) - np.gradient(self.v_R_2D, self.phi, axis=0))/self.R[None, :]/self.surface_density
-
-		if self.dimension == 2:
-			return (np.gradient( self.v_phi_2D * self.R[None, :], self.R, axis=1) - np.gradient(self.v_R_2D, self.phi, axis=0))/self.R[None, :]/self.surface_density
+		if self.dimension == 2 or self.use_2d_vortensity:
+			self.vortensity =  (np.gradient( self.v_phi_2D * self.R[:, None], self.R, axis=0) - np.gradient(self.v_R_2D, self.phi, axis=1))/self.R[:, None]/self.surface_density
 		else:
-			if self.intergration_method == 'spherical':
-				# Allow the small angle approximation for this calculation
-				return (np.gradient( self.v_phi_2D * self.R[None, :], self.R, axis=1) - np.gradient(self.v_R_2D, self.phi, axis=0))/self.R[None, :]/self.surface_density
-			raise NotImplementedError('No 3D vortensity calculation yet implemented')
+			r_cyl_velocity = (
+				self.v_R * np.sin(self.theta[None, None, :]) +
+				self.R[:, None, None] * np.cos(self.theta[None, None, :]) * self.v_phi)
 
+			r_cyl = self.R[:, None, None] * np.sin(self.theta[None, None, :])
+
+			azimuthal_velocity = self.v_phi * self.R[:, None, None]/r_cyl
+
+			zeta_z = (np.gradient(azimuthal_velocity * self.r_cyl[:, None, None], self.R, axis=0) 
+					  - np.gradient(r_cyl_velocity, self.phi, axis=1))/self.r_cyl/self.density
+
+			self.vortensity = self.intergrate_in_z(1/zeta_z)**(-1)
 
 	# Z-Intergral Functions
 	def intergrate_in_z(self, integrand):
@@ -291,14 +335,27 @@ class Simulation(object):
 		return output
 
 	# Perform all z-integrals
-	def reduce_to_2d(self):
+	def reduce_to_2d(self, **kwargs):
 		if self.dimension == 2:
 			logger.info('Already 2D')
 			return
 
 		self.surface_density = self.intergrate_in_z(self.density)
-		self.v_R_2D   = self.intergrate_in_z(self.v_R   * self.density)/self.surface_density
-		self.v_phi_2D = self.intergrate_in_z(self.v_phi * self.density)/self.surface_density
+
+		r_cyl_velocity = (
+			self.v_R * np.sin(self.theta[None, None, :]) +
+			self.R[:, None, None] * np.cos(self.theta[None, None, :]) * self.v_phi)
+
+		r_cyl = self.R[:, None, None] * np.sin(self.theta[None, None, :])
+
+		azimuthal_velocity = self.v_phi * self.R[:, None, None]/r_cyl
+
+		# Small angle approximation, don't bother converting 
+		self.v_R_2D   = self.intergrate_in_z(r_cyl_velocity   * self.density)/self.surface_density
+		self.v_phi_2D = self.intergrate_in_z(azimuthal_velocity * self.density)/self.surface_density
+
+		if self.include_vortensity:
+			self.calculate_vortensity()
 
 	# Data saving boilerplate
 	def save_all(self, filename=None):
@@ -333,7 +390,7 @@ class Simulation(object):
 
 	def save_2d(self, filename=None):
 		if filename is None:
-			filename = f'{self.output_folder}2D_orbit_{self.orbit_id}.p'
+			filename = f'{self.output_folder}/2D_orbit_{self.orbit_id}.p'
 
 		keys = ['setup',
 				'R',
@@ -352,7 +409,7 @@ class Simulation(object):
 
 	def save_1d(self, filename=None):
 		if filename is None:
-			filename = f'{self.output_folder}1D_orbit_{self.orbit_id}.p'
+			filename = f'{self.output_folder}/1D_orbit_{self.orbit_id}.p'
 
 		keys = ['setup',
 				'R',
@@ -373,6 +430,8 @@ class Simulation(object):
 		if self.dimension == 3:
 			keys = keys + ['dsigmadt', 'dTdR', 'F_wave',
 						   'dF_wavedR', 'F_dep', 'dF_depdR']
+		if self.include_vortensity:
+			keys.append('vortensity_1D')
 
 		self.save_subset(keys, filename)
 

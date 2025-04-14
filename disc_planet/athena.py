@@ -12,7 +12,7 @@ import numpy as np
 from scipy.integrate import cumulative_trapezoid
 
 from disc_planet.simulation import Simulation
-from disc_planet.analytic_gap import non_local_change_in_density	
+from disc_planet.utils import non_local_change_in_density	
 from disc_planet import potentials
 from disc_planet import athena_read
 
@@ -31,7 +31,7 @@ class Athena3DSimulation(Simulation):
 	dimension		 = 3
 
 	def __init__(self, folder, orbit_id, athinput_fn, *args, **kwargs):
-		self.folder	   = folder
+		self.folder	   = folder.removesuffix('/')
 		self.orbit_id = orbit_id
 		self.athinput	 = athena_read.athinput(folder + athinput_fn)
 
@@ -119,7 +119,7 @@ class Athena2DSimulation(Simulation):
 	dimension		 = 2
 
 	def __init__(self, folder, orbit_id, athinput_fn, *args, **kwargs):
-		self.folder	   = folder
+		self.folder	   = folder.removesuffix('/')
 		self.orbit_id = orbit_id
 		self.athinput	 = athena_read.athinput(folder + athinput_fn)
 		self.use_1d_athena_outputs = kwargs.get('use_1d_athena_outputs', False)

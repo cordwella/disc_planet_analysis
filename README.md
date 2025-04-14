@@ -19,10 +19,9 @@ python3 -m pip install dist/disc_planet-0.0.1.tar.gz
 
 ## Citing this repository
 If you use output from this module in your paper please cite this github repository directly as well as the relevant definitions/equations in:
-Cordwell & Rafikov (2024), and Cordwell, Ziampras & Rafikov (2025, in prep)
-For 2D and 3D conventions respectively
+Cordwell & Rafikov (2024) or Cordwell, Ziampras & Rafikov (2025, in prep),  for 2D and 3D conventions respectively
 
-## Notation Convention
+## Notational Convention
 
 2D Cylindrical Co-ordinates ${R, \phi}$
 3D Spherical   Co-ordinates ${R, \phi, \theta}$. Where $\theta$ is co-latitutde
@@ -30,7 +29,7 @@ For 2D and 3D conventions respectively
 
 $\Phi_p$ is the potential of a planet (or generic a perturbing potential)
 
-Velocity is $v$
+Velocity is $v$.
 
 
 ## Usage Examples 
@@ -131,7 +130,7 @@ Alternatively you can take the significantly slower, but more correct, route of 
 ```
 from disc_planet.athena import Athena3DSimulation
 import pprint
-new_orbit = Athena3DSimulation("test_data/3D_athena_test/", 10, 'athinput.potential_3d', intergration_method = 'column', output_folder='test_data/3D_athena_test/col_2_')
+new_orbit = Athena3DSimulation("test_data/3D_athena_test/", 10, 'athinput.potential_3d', intergration_method = 'column', output_folder='test_data/3D_athena_test/col_')
 summary = new_orbit.process_summary_outputs()
 new_orbit.save_1d()
 pprint.pp(summary)
@@ -149,11 +148,23 @@ new_orbit.save_2d()
 ```
 
 
+### Changing settings
+
+By default this software will not calculate vortensity or horseshoe widths. These must be enabled by passing the relevant arguments
+into your simulation object. e.g.
+
+```
+new_orbit = Pluto3DSimulation(folder, 10, include_horseshoe=True, include_vortensity=True)
+```
+
+There are additional settings for the calculation of horseshoe width that can be included. These will be documented before release
+but for now please look at `simulation.py`.
+
 ## Outputs 
 By default this code will save a python pickle with a dictionary containting 1D/2D data from the simulation.
 
 2-Dimensional Outputs:
-- 2D Vortensity
+- 2D Vortensity (In the 3D case we use the definition from Masset & Benetize-Llambay (2016) equation 50)
 - Averaged velocities
 - Surface density
 
@@ -162,6 +173,7 @@ By default this code will save a python pickle with a dictionary containting 1D/
 - $F_{wave}$ 
 - $dT/dR$
 - $F_{dep}$
+- 1D Average of vortensity
 - $d \sigma /dt$ using the theory of Cordwell & Rafikov 2024 (valid only for local isothermal discs)
 
 0-Dimensional Outputs:
@@ -169,6 +181,7 @@ By default this code will save a python pickle with a dictionary containting 1D/
 - One sided Linblad torques
 - Inner and Outer planetary torques
 - Gap Width
+- Horseshoe width
 
 ## Memory usage
 By default this will load entire copies of your 3D data into memory, as such it is a very 
@@ -178,8 +191,10 @@ memory hungry application. For production size simulations it is unlikely to be 
 ## Planned Features
 - [ ] Unit-tests and examples
 - [x] PLUTO input class
-- [ ] 3D Vortensity Calculation
-- [ ] Horseshoe width calculation
-- [ ] Logging
+- [x] 3D Vortensity Calculation
+- [x] Horseshoe width calculation
+- [ ] Uniform Logging
 - [x] Klar type 3D potential
 - [ ] FARGO3D Input class
+- [ ] 2D Slices of 3D outputs at different scale heights
+- [ ] Support for 3D simulations using cylindrical co-ordinates
