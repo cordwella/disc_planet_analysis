@@ -35,7 +35,7 @@ class Pluto3DSimulation(Simulation):
 	dimension         = 3
 
 	def __init__(self, folder, orbit_id, *args, **kwargs):
-		self.folder = folder
+		self.folder = folder .removesuffix('/') + '/'
 		self.orbit_id = orbit_id
 
 		self.config = parse_pluto_ini(folder + 'pluto.ini')

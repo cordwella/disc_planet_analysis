@@ -147,6 +147,7 @@ new_orbit.save_1d()
 new_orbit.save_2d()
 ```
 
+### Generic simualtion
 
 ### Changing settings
 
@@ -157,8 +158,8 @@ into your simulation object. e.g.
 new_orbit = Pluto3DSimulation(folder, 10, include_horseshoe=True, include_vortensity=True)
 ```
 
-There are additional settings for the calculation of horseshoe width that can be included. These will be documented before release
-but for now please look at `simulation.py`.
+There are additional settings for the calculation of horseshoe width that can be included. Please see 
+`simulation.py` `Simulation::__init__`'s docstring for a list of options.
 
 ## Outputs 
 By default this code will save a python pickle with a dictionary containting 1D/2D data from the simulation.
@@ -189,7 +190,7 @@ memory hungry application. For production size simulations it is unlikely to be 
 
 
 ## Planned Features
-- [ ] Unit-tests and examples
+- [ ] Unit-tests, examples and detailed docstrings
 - [x] PLUTO input class
 - [x] 3D Vortensity Calculation
 - [x] Horseshoe width calculation
@@ -198,3 +199,7 @@ memory hungry application. For production size simulations it is unlikely to be 
 - [ ] FARGO3D Input class
 - [ ] 2D Slices of 3D outputs at different scale heights
 - [ ] Support for 3D simulations using cylindrical co-ordinates
+- [x] Options for analytic gap calculation
+- [ ] Analytic gap calculation for $p = 0.5$ (done correctly)
+- [ ] Correct 3D potential for inclined orbits
+- [ ] 3D interpolation speed up (probably by using a 4 corner interpolation instead)

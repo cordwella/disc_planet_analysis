@@ -31,12 +31,12 @@ class Athena3DSimulation(Simulation):
 	dimension		 = 3
 
 	def __init__(self, folder, orbit_id, athinput_fn, *args, **kwargs):
-		self.folder	   = folder.removesuffix('/')
+		self.folder	   = folder.removesuffix('/') + '/'
 		self.orbit_id = orbit_id
-		self.athinput	 = athena_read.athinput(folder + athinput_fn)
+		self.athinput	 = athena_read.athinput(folder + athinput_fn.removeprefix('/'))
 
 		# TODO: Implement alternative configuration
-		fn = f'{folder}/disksph.out1.{orbit_id:05d}.athdf'
+		fn = f'{folder}disksph.out1.{orbit_id:05d}.athdf'
 
 		self.athena_data = athena_read.athdf(fn)
 		if 'dens' in self.athena_data:
@@ -69,6 +69,8 @@ class Athena3DSimulation(Simulation):
 		}
 
 		self.setup['omega0'] = np.sqrt(self.setup['stellar_mass'] * self.setup['R0']**(-3))
+
+		self.setup['nx_R'] = len(self.R)
 
 		# Setup h0 depending on the thermodynamics
 		if self.density_key == 'dens':
@@ -119,12 +121,12 @@ class Athena2DSimulation(Simulation):
 	dimension		 = 2
 
 	def __init__(self, folder, orbit_id, athinput_fn, *args, **kwargs):
-		self.folder	   = folder.removesuffix('/')
+		self.folder	   = folder.removesuffix('/') + '/'
 		self.orbit_id = orbit_id
-		self.athinput	 = athena_read.athinput(folder + athinput_fn)
+		self.athinput	 = athena_read.athinput(folder + athinput_fn.removeprefix('/'))
 		self.use_1d_athena_outputs = kwargs.get('use_1d_athena_outputs', False)
 
-		fn = folder + '/diskplanet.out1.{:05d}.athdf'.format(orbit_id)	
+		fn = folder + 'diskplanet.out1.{:05d}.athdf'.format(orbit_id)	
 
 		self.athena_data = athena_read.athdf(fn)
 
@@ -210,8 +212,8 @@ class Athena2DSimulation(Simulation):
 	def process_1d_outputs(self, *args, **kwargs):
 		# Check if we can access out3 and out4
 		# These are specified as outputs only in AJC's setups
-		f_1 = self.folder + '/diskplanet.out3.{:04d}0.athdf'.format(self.orbit_id)	
-		f_2 = self.folder + '/diskplanet.out4.{:04d}0.athdf'.format(self.orbit_id)
+		f_1 = self.folder + 'diskplanet.out3.{:04d}0.athdf'.format(self.orbit_id)	
+		f_2 = self.folder + 'diskplanet.out4.{:04d}0.athdf'.format(self.orbit_id)
 
 		if self.use_1d_athena_outputs and os.path.isfile(f_1) and os.path.isfile(f_2): 
 			logger.info('Extracting 1D outputs from out3 and out4')

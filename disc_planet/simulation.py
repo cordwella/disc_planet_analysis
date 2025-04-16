@@ -14,7 +14,7 @@ class Simulation(object):
 	"""
 	SimulationObject 
 
-	Base class that all other references should inherit from.
+	Abstract base class that all other references should inherit from.
 	Inheriting objects should provide an __init__ function that can
 	read in data from a specific format/set of simulation settings
 
@@ -31,14 +31,14 @@ class Simulation(object):
 
 	include_vortensity	  = False
 	use_2d_vortensity 	  = False
-	include_horseshoe	  = False
 
+	include_horseshoe	  = False
 	horseshoe_max_width = 0.2 # In units of r_p
 	horseshoe_tmax      = 1000
 	horseshoe_max_iter	= 100
 
-	gap_analytic_ignore_outer_percent = 0.005
-
+	gap_analytic_ignore_outer_percent   = 0.005
+	gap_analytic_ignore_coorbital_width = 0 # in code units
 
 	setup = {}
 	orbit_id = None
@@ -71,6 +71,48 @@ class Simulation(object):
 	dsigmadt = None
 
 	def __init__(self, *args, **kwargs):
+		"""
+		Should only be called via super().__init__(*args, **kwargs) in 
+		inheriting classes. Grid, velocities and density should be set 
+		by the inheriting class.
+
+		Inputs (all optional):
+		- output_folder: string, where to save output data. Optional
+		  only if self.folder is set by the inheriting class 
+		- integration_method: string, 'spherical' or 'column'. For 
+		  3D spherical simulations either integrate on shells 
+		  ('spherical', reccomended) or interpolate and integate on
+		  columns ('column', more correct but not reccomended due 
+		  to speed issues). Default: 'spherical'
+		- include_vortensity: boolean. Default: False. Whether or 
+		  not to calculate vortensity/PV
+		- use_2d_vortensity: Boolean. Default: False. For 3D simulations
+		  whether to instead use the classical 2D definition of 
+		  vortensity. (Irrelevant for 2D simulations)
+		- include_horseshoe: boolean. Default False. 
+		- horseshoe_max_width: float. Default 0.2. Maximum width,
+		  in units of R_p, that the horseshoe orbits should have. 
+		- horseshoe_del_R: float. Radial step each attempt to find the 
+		  horseshoe orbit.
+		- horseshoe_tmax: float. Default 1000. In the horseshoe calculation
+		  algorithm set tmax for solve_ivp. 
+		- horseshoe_max_iter: int. Default 100. Allow how many attempts 
+		  at the horseshoe calculation algorithm. (Should go up as delR 
+		  goes down).
+		- gap_smallest_distance: float. default H_0 * 4. Longest distance 
+		  away from the planet to attempt to find the first gap
+		- gap_smallest_distance: float. default 0. Shortest distance 
+		  away from the planet to attempt to find the gap
+		- gap_analytic_ignore_coorbital_width: float, default 0. When calculating 
+		  the analytic gap structure set f_dep to zero within this distance 
+		  away from the planet (useful for removing the effects of the unsaturated 
+		  co-rotation torque)
+		- gap_analytic_ignore_outer_percent: float. default 0.005. When 
+		  calculating the outer/inner gap set the outer and inner 
+		  gap_analytic_ignore_outer_percent of f_dep to zero. (This is
+		  to account for numerical wobbles at the edge of the domain.)
+		"""
+
 		if self.R is None:
 			raise Exception('Data not setup. This class is not designed to be used on its own and must be inherited from.')
 
@@ -96,12 +138,12 @@ class Simulation(object):
 		self.gap_furthest_distance = kwargs.get('gap_furthest_distance', self.setup['H0'] * 3)
 	
 		# Smallest distance away from the planet we expect the gap to be
-		self.gap_smallest_distance = kwargs.get('gap_smallest_distance', self.setup['H0'] * 0.4)
+		self.gap_smallest_distance = kwargs.get('gap_smallest_distance', 0)
 
 		# In the anayltic gap calculation cut $F_{dep}$ to zero at the outer/inner percent of the disc
 		# to account for numerical errors
 		self.gap_analytic_ignore_outer_percent = kwargs.get('gap_analytic_ignore_outer_percent', self.gap_analytic_ignore_outer_percent)
-
+		self.gap_analytic_ignore_coorbital_width = kwargs.get('gap_analytic_ignore_coorbital_width', self.gap_analytic_ignore_coorbital_width)
 
 
 	# Main computation logic will be contained in these
@@ -151,6 +193,7 @@ class Simulation(object):
 			f_dep_to_use  = self.dF_depdR/self.surface_density_1D
 			f_dep_to_use[self.R < self.R[0] * (1 + self.gap_analytic_ignore_outer_percent)] = 0
 			f_dep_to_use[self.R > self.R[-1] * (1 - self.gap_analytic_ignore_outer_percent)] = 0
+			f_dep_to_use[np.abs(self.R - self.setup['R_p']) < self.gap_analytic_ignore_outer_percent] = 0
 
 			self.dsigmadt = non_local_change_in_density(
 				self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], self.setup['H0']/self.setup['R0'],
@@ -179,6 +222,8 @@ class Simulation(object):
 		f_dep_to_use[self.R < self.R[0] * (1 + self.gap_analytic_ignore_outer_percent)] = 0
 		f_dep_to_use[self.R > self.R[-1] * (1 - self.gap_analytic_ignore_outer_percent)] = 0
 
+		f_dep_to_use[np.abs(self.R - self.setup['R_p']) < self.gap_analytic_ignore_outer_percent] = 0
+
 
 		self.dsigmadt_2D = non_local_change_in_density(
 			self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], self.setup['H0']/self.setup['R0'],
@@ -197,11 +242,11 @@ class Simulation(object):
 			self.process_1d_outputs()
 
 		gap_timescale = -1/self.dsigmadt_2D[np.argmin( np.abs(self.R - self.setup['R_p']) )]
-		r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))]
-		r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))]
+		r_inner = self.R[np.logical_and(self.R < self.setup['R_p'] - self.gap_smallest_distance, self.R > (self.setup['R_p'] - self.gap_furthest_distance))]
+		r_outer = self.R[np.logical_and(self.R > self.setup['R_p'] + self.gap_smallest_distance, self.R < (self.setup['R_p'] + self.gap_furthest_distance))]
 		
-		inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))
-		outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))
+		inner_gap_mask = np.logical_and(self.R < self.setup['R_p'] - self.gap_smallest_distance, self.R > (self.setup['R_p'] - self.gap_furthest_distance))
+		outer_gap_mask = np.logical_and(self.R > self.setup['R_p'] + self.gap_smallest_distance, self.R < (self.setup['R_p'] + self.gap_furthest_distance))
 		r_id_inner_gap = np.argmin(self.dsigmadt_2D[inner_gap_mask])
 		r_id_outer_gap = np.argmin(self.dsigmadt_2D[outer_gap_mask])
 
@@ -245,8 +290,8 @@ class Simulation(object):
 			r_inner = self.R[np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))]
 			r_outer = self.R[np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))]
 			
-			inner_gap_mask = np.logical_and(self.R < self.setup['R_p'], self.R > (self.setup['R_p'] - self.gap_furthest_distance))
-			outer_gap_mask = np.logical_and(self.R > self.setup['R_p'], self.R < (self.setup['R_p'] + self.gap_furthest_distance))
+			inner_gap_mask = np.logical_and(self.R < self.setup['R_p'] - self.gap_smallest_distance, self.R > (self.setup['R_p'] - self.gap_furthest_distance))
+			outer_gap_mask = np.logical_and(self.R > self.setup['R_p'] + self.gap_smallest_distance, self.R < (self.setup['R_p'] + self.gap_furthest_distance))
 			r_id_inner_gap = np.argmin(self.dsigmadt[inner_gap_mask])
 			r_id_outer_gap = np.argmin(self.dsigmadt[outer_gap_mask])
 
