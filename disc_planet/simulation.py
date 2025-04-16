@@ -193,7 +193,7 @@ class Simulation(object):
 			f_dep_to_use  = self.dF_depdR/self.surface_density_1D
 			f_dep_to_use[self.R < self.R[0] * (1 + self.gap_analytic_ignore_outer_percent)] = 0
 			f_dep_to_use[self.R > self.R[-1] * (1 - self.gap_analytic_ignore_outer_percent)] = 0
-			f_dep_to_use[np.abs(self.R - self.setup['R_p']) < self.gap_analytic_ignore_outer_percent] = 0
+			f_dep_to_use[np.abs(self.R - self.setup['R_p']) < self.gap_analytic_ignore_coorbital_width] = 0
 
 			self.dsigmadt = non_local_change_in_density(
 				self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], self.setup['H0']/self.setup['R0'],
@@ -222,7 +222,7 @@ class Simulation(object):
 		f_dep_to_use[self.R < self.R[0] * (1 + self.gap_analytic_ignore_outer_percent)] = 0
 		f_dep_to_use[self.R > self.R[-1] * (1 - self.gap_analytic_ignore_outer_percent)] = 0
 
-		f_dep_to_use[np.abs(self.R - self.setup['R_p']) < self.gap_analytic_ignore_outer_percent] = 0
+		f_dep_to_use[np.abs(self.R - self.setup['R_p']) < self.gap_analytic_ignore_coorbital_width] = 0
 
 
 		self.dsigmadt_2D = non_local_change_in_density(
