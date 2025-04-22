@@ -113,7 +113,7 @@ class BesselTypePotentialConstH(PlanetaryPotential):
 		self.m_p   = m_p
 		self.gmp_root_2_pi = m_p * (2 * np.pi)**(-1/2)
 		self.R_p   = R_p
-		self.phi_p = calculate_dPhidphi_2D
+		self.phi_p = phi_p
 		self.H_p = H_p
 		self.smoothingB = smoothingB
 
@@ -161,6 +161,8 @@ class BesselTypePotential(PlanetaryPotential):
 		return scale * (k_0 - k_1) * R * self.R_p  * np.sin(phi - self.phi_p)/(2 * local_scale_height * local_scale_height)
 	    
 
+class BesselLinModePotential(BesselTypePotential):
+	pass
 
 class BesselTypeForcing(PlanetaryPotential):
 	def __init__(self, m_p, R_p, phi_p, H_p, temperature_slope, smoothingB=0.005):
