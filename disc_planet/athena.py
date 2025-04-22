@@ -1,7 +1,7 @@
 """
 athena.py
 
-Configuration simulation details for Athena++ 
+Configuration simulation details for Athena++
 """
 
 import logging
@@ -12,7 +12,7 @@ import numpy as np
 from scipy.integrate import cumulative_trapezoid
 
 from disc_planet.simulation import Simulation
-from disc_planet.utils import non_local_change_in_density	
+from disc_planet.utils import non_local_change_in_density
 from disc_planet import potentials
 from disc_planet import athena_read
 
@@ -33,10 +33,10 @@ class Athena3DSimulation(Simulation):
 	def __init__(self, folder, orbit_id, athinput_fn, *args, **kwargs):
 		self.folder	   = folder.removesuffix('/') + '/'
 		self.orbit_id = orbit_id
-		self.athinput	 = athena_read.athinput(folder + athinput_fn.removeprefix('/'))
+		self.athinput	 = athena_read.athinput(self.folder + athinput_fn.removeprefix('/'))
 
 		# TODO: Implement alternative configuration
-		fn = f'{folder}disksph.out1.{orbit_id:05d}.athdf'
+		fn = f'{self.folder}disksph.out1.{orbit_id:05d}.athdf'
 
 		self.athena_data = athena_read.athdf(fn)
 		if 'dens' in self.athena_data:
@@ -45,7 +45,7 @@ class Athena3DSimulation(Simulation):
 			self.density_key = 'rho'
 		# Load data
 		self.time	= self.athena_data['Time']
-		
+
 		self.R	   = self.athena_data['x1v']
 		self.theta   = self.athena_data['x2v']
 		self.phi	 = self.athena_data['x3v']
@@ -77,7 +77,7 @@ class Athena3DSimulation(Simulation):
 			# Globally isothermal setup
 			self.setup['H0'] = self.athinput['hydro']['iso_sound_speed']/self.setup['omega0']
 		else:
-			# setup using the 
+			# setup using the
 			p0_over_r0 = self.athinput['problem']['p0_over_rho0']
 			self.setup['H0'] = p0_over_r0**(1/2)/self.setup['omega0']
 
@@ -98,9 +98,9 @@ class Athena3DSimulation(Simulation):
 		phi_p = self.athinput['problem'].get('phipl0', np.pi) + self.time * self.setup['omega0']
 
 		self.potential = potentials.SecondOrderSmoothedPotential(
-			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p, np.pi/2, 
+			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p, np.pi/2,
 			self.setup['smoothing_length'])
-	
+
 		self.potential_2D = potentials.BesselTypePotential(
 			self.setup['planet_mass'] * ramp, self.setup['R0'], phi_p,
 			self.setup['H0'], self.setup['temperature_slope'],
@@ -112,7 +112,7 @@ class Athena2DSimulation(Simulation):
 	"""
 	Setup using Amelia Cordwell's 2D Athena++ cylindircal codes.
 
-	By default this calculates values from the 2-dimensional outputs 
+	By default this calculates values from the 2-dimensional outputs
 
 	See: https://github.com/cordwella/disk-with-slurm/blob/potentials/athena_custom/src/pgen/diskplanet_alphabeta.cpp
 	"""
@@ -123,10 +123,10 @@ class Athena2DSimulation(Simulation):
 	def __init__(self, folder, orbit_id, athinput_fn, *args, **kwargs):
 		self.folder	   = folder.removesuffix('/') + '/'
 		self.orbit_id = orbit_id
-		self.athinput	 = athena_read.athinput(folder + athinput_fn.removeprefix('/'))
+		self.athinput	 = athena_read.athinput(self.folder + athinput_fn.removeprefix('/'))
 		self.use_1d_athena_outputs = kwargs.get('use_1d_athena_outputs', False)
 
-		fn = folder + 'diskplanet.out1.{:05d}.athdf'.format(orbit_id)	
+		fn = self.folder + 'diskplanet.out1.{:05d}.athdf'.format(orbit_id)
 
 		self.athena_data = athena_read.athdf(fn)
 
@@ -136,7 +136,7 @@ class Athena2DSimulation(Simulation):
 			self.density_key = 'rho'
 
 		# Load data
-		self.time = self.athena_data['Time']		
+		self.time = self.athena_data['Time']
 		self.R   = self.athena_data['x1v']
 		self.phi   = self.athena_data['x2v']
 
@@ -155,6 +155,8 @@ class Athena2DSimulation(Simulation):
 			'planet_mass': self.athinput['problem']['GMp'],
 			'dimension': 2,
 			'R_p': self.athinput['problem']['r0'],
+			'b': self.athinput['problem'].get('eps', 0),
+			'n_phi': self.athinput['mesh']['nx2']
 		}
 
 		self.setup['omega0'] = np.sqrt(self.setup['stellar_mass'] * self.setup['R0']**(-3))
@@ -163,10 +165,10 @@ class Athena2DSimulation(Simulation):
 			# Globally isothermal setup
 			self.setup['H0'] = self.athinput['hydro']['iso_sound_speed']/self.setup['omega0']
 		else:
-			# setup using the 
+			# setup using the
 			p0_over_r0 = self.athinput['problem']['p0_over_rho0']
 			self.setup['H0'] = p0_over_r0**(1/2)/self.setup['omega0']
-	
+
 		ramp = 1
 		if self.time < self.athinput['problem']['tramp'] * 2 * np.pi:
 			# Ramp setup
@@ -187,11 +189,11 @@ class Athena2DSimulation(Simulation):
 
 		if pot_order == 4:
 			self.potential_2D = potentials.FourthOrderSmoothedPotential(
-				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p, 
+				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p,
 				self.setup['smoothing_length'])
 		elif pot_order == 2:
 			self.potential_2D = potentials.SecondOrderSmoothedPotential(
-				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p, 0, 
+				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p, 0,
 				self.setup['smoothing_length'])
 		elif pot_order == -1:
 			self.potential_2D = potentials.BesselTypeForcing(
@@ -199,12 +201,17 @@ class Athena2DSimulation(Simulation):
 				self.setup['H0'], self.setup['temperature_slope'], smoothingB)
 		elif pot_order == -2:
 			self.potential_2D = potentials.BesselTypePotentialConstH(
-				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p, 
-				self.setup['H0'], self.setup['temperature_slope'], smoothingB)
+				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p,
+				self.setup['H0'], smoothingB)
 		elif pot_order == -3:
 			self.potential_2D = potentials.BesselTypePotential(
-				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p, 
+				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p,
 				self.setup['H0'], self.setup['temperature_slope'], smoothingB)
+		elif pot_order == -4:
+			self.potential_2D = potentials.BesselLinModePotential(
+				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p,
+				self.setup['H0'], self.setup['temperature_slope'], smoothingB)
+
 
 		super().__init__(*args, **kwargs)
 
@@ -212,10 +219,10 @@ class Athena2DSimulation(Simulation):
 	def process_1d_outputs(self, *args, **kwargs):
 		# Check if we can access out3 and out4
 		# These are specified as outputs only in AJC's setups
-		f_1 = self.folder + 'diskplanet.out3.{:04d}0.athdf'.format(self.orbit_id)	
+		f_1 = self.folder + 'diskplanet.out3.{:04d}0.athdf'.format(self.orbit_id)
 		f_2 = self.folder + 'diskplanet.out4.{:04d}0.athdf'.format(self.orbit_id)
 
-		if self.use_1d_athena_outputs and os.path.isfile(f_1) and os.path.isfile(f_2): 
+		if self.use_1d_athena_outputs and os.path.isfile(f_1) and os.path.isfile(f_2):
 			logger.info('Extracting 1D outputs from out3 and out4')
 
 			a = athena_read.athdf(f_1)
@@ -241,15 +248,14 @@ class Athena2DSimulation(Simulation):
 			self.dF_wavedR_2D[0] = 0
 			self.dF_depdR_2D[0] = 0
 
-			self.surface_density_1D = np.average(b[self.density_key][0], axis=0)/norm	
+			self.surface_density_1D = np.average(b[self.density_key][0], axis=0)/norm
 			self.v_r_1D = np.average(b['mom1'][0], axis=0)/norm/self.surface_density_1D
 			self.v_phi_1D = np.average(b['mom2'][0], axis=0)/norm/self.surface_density_1D
 
 			self.dsigmadt_2D = non_local_change_in_density(
-				self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], 
+				self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'],
 				self.setup['H0']/self.setup['R0'], self.dF_depdR_2D/self.surface_density_1D)
 
 		else:
 			logger.info('Extracting 1D outputs from 2D results')
 			return super().process_1d_outputs(*args, **kwargs)
-
