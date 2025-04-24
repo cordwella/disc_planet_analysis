@@ -131,7 +131,7 @@ class Simulation(object):
 		self.horseshoe_max_width = kwargs.get('horseshoe_max_width', self.horseshoe_max_width)
 		self.setup['R_p'] = self.setup.get('R_p', 1)
 		r_p_i = np.argmin(np.abs(self.R - self.setup['R_p']))
-		self.horseshoe_del_R = kwargs.get('horseshoe_del_R', self.R[r_p_i + 1] - self.R[r_p_i]))
+		self.horseshoe_del_R = kwargs.get('horseshoe_del_R', self.R[r_p_i + 1] - self.R[r_p_i])
 		self.horseshoe_tmax  = kwargs.get('horseshoe_tmax', self.horseshoe_tmax)
 		self.horseshoe_max_iter  = kwargs.get('horseshoe_max_iter', self.horseshoe_max_iter)
 
