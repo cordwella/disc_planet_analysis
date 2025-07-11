@@ -122,7 +122,7 @@ def get_horseshoe_width(R, phi, vr, vphi,
 
         if final_position_phi > np.pi * 1.1:
             # We have escaped the horseshoe region
-            return [prev_r_final - prev_r, prev_r_final, prev_r]
+            return [(prev_r_final - prev_r)/2, prev_r_final, prev_r]
 
         prev_r = r
         prev_r_final = final_position_r
