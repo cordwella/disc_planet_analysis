@@ -70,7 +70,7 @@ class Athena3DSimulation(Simulation):
 
 		self.setup['omega0'] = np.sqrt(self.setup['stellar_mass'] * self.setup['R0']**(-3))
 
-		self.setup['nx_R'] = len(self.R)
+		self.setup['nx_phi'] = len(self.phi)
 
 		# Setup h0 depending on the thermodynamics
 		if self.density_key == 'dens':
@@ -158,6 +158,7 @@ class Athena2DSimulation(Simulation):
 			'b': self.athinput['problem'].get('eps', 0),
 			'n_phi': self.athinput['mesh']['nx2']
 		}
+		self.setup['nx_phi'] = len(self.phi)
 
 		self.setup['omega0'] = np.sqrt(self.setup['stellar_mass'] * self.setup['R0']**(-3))
 
@@ -211,19 +212,19 @@ class Athena2DSimulation(Simulation):
 			self.potential_2D = potentials.BesselLinModePotential(
 				self.setup['planet_mass'] * ramp, self.setup['R_p'], phi_p,
 				self.setup['H0'], self.setup['temperature_slope'], smoothingB)
-
+		self.use_1d_athena_outputs = False
 
 		super().__init__(*args, **kwargs)
 
 
-	def process_1d_outputs(self, *args, **kwargs):
+	def process_1d_outputs(self, *args, include_vortensity=False, **kwargs):
 		# Check if we can access out3 and out4
 		# These are specified as outputs only in AJC's setups
 		f_1 = self.folder + 'diskplanet.out3.{:04d}0.athdf'.format(self.orbit_id)
 		f_2 = self.folder + 'diskplanet.out4.{:04d}0.athdf'.format(self.orbit_id)
 
 		if self.use_1d_athena_outputs and os.path.isfile(f_1) and os.path.isfile(f_2):
-			logger.info('Extracting 1D outputs from out3 and out4')
+			logger.warning('Extracting 1D outputs from out3 and out4')
 
 			a = athena_read.athdf(f_1)
 			b = athena_read.athdf(f_2)
@@ -231,7 +232,7 @@ class Athena2DSimulation(Simulation):
 			dphi = 2 * np.pi / a['RootGridSize'][1]
 
 			num_phi = np.shape(b[self.density_key])[1]
-			total_phi = a['RootGridSize'][1]
+			total_phi = b['RootGridSize'][1]
 			norm = total_phi/num_phi
 
 			self.dTdR_2D = self.R**2 * np.sum(a['planet_src_mom2'][0], axis=0) * dphi
@@ -248,13 +249,28 @@ class Athena2DSimulation(Simulation):
 			self.dF_wavedR_2D[0] = 0
 			self.dF_depdR_2D[0] = 0
 
-			self.surface_density_1D = np.average(b[self.density_key][0], axis=0)/norm
+			self.surface_density_1D = np.average(b[self.density_key][0], axis=0)
 			self.v_r_1D = np.average(b['mom1'][0], axis=0)/norm/self.surface_density_1D
 			self.v_phi_1D = np.average(b['mom2'][0], axis=0)/norm/self.surface_density_1D
 
+			f_dep_to_use  = self.dF_depdR_2D/self.surface_density_1D
+			f_dep_to_use[self.R < self.R[0] * (1 + self.gap_analytic_ignore_outer_percent)] = 0
+			f_dep_to_use[self.R > self.R[-1] * (1 - self.gap_analytic_ignore_outer_percent)] = 0
+
 			self.dsigmadt_2D = non_local_change_in_density(
 				self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'],
-				self.setup['H0']/self.setup['R0'], self.dF_depdR_2D/self.surface_density_1D)
+				self.setup['H0']/self.setup['R0'], f_dep_to_use)
+
+			f_dep_to_use[np.abs(self.R - self.setup['R_p']) < self.gap_analytic_ignore_coorbital_width] = 0
+			self.dsigmadt_shock_only_2D = non_local_change_in_density(
+				self.R/self.setup['R0'], -1 * self.setup['surface_density_slope'], -1 *self.setup['temperature_slope'], self.setup['H0']/self.setup['R0'],
+				f_dep_to_use)
+
+			if self.include_vortensity or include_vortensity:
+				if self.vortensity is None:
+					self.calculate_vortensity()
+
+				self.vortensity_1D = np.average(self.vortensity, axis=1)
 
 		else:
 			logger.info('Extracting 1D outputs from 2D results')
