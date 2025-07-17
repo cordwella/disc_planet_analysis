@@ -560,7 +560,55 @@ class ProcessedData(Simulation):
 			if key in self.possible_keys:
 				setattr(self, key, value)
 
+		super().__init__(*args, **kwargs)
 
 class ProcessedDataMissing(Exception):
 	""" Exception for when processed data does not yet exist """
 	pass
+
+
+class Simulation3D(Simulation):
+	""" Load a simulation from pre-provided data"""
+	dimension = 3
+	SIMULATION_SOURCE = 'UNKNOWN'
+
+	def __init__(self, folder, orbit_id, setup,
+					R, phi, theta, density, 
+					v_R, v_phi, v_theta, potential,
+					potential_2D, *args, **kwargs):
+		self.folder = folder
+		self.orbit_id = orbit_id
+		self.setup = setup
+		self.R = R 
+		self.phi = phi
+		self.theta = theta
+		self.density = density 
+		self.v_R   = v_R
+		self.v_phi = v_phi
+		self.v_theta = v_theta
+		self.potential = potential
+		self.potential_2D  = potential_2D
+
+		super().__init__(*args, **kwargs)
+
+
+class Simulation2D(Simulation):
+	""" Load a simulation from pre-provided data"""
+	dimension = 2
+	SIMULATION_SOURCE = 'UNKNOWN'
+
+	def __init__(self, folder, orbit_id, setup,
+					R, phi, surface_density, 
+					v_R, v_phi,  potential_2D, *args, **kwargs):
+		self.folder = folder
+		self.orbit_id = orbit_id
+		self.setup = setup
+		self.R = R 
+		self.phi = phi
+		self.density = density 
+		self.v_R   = v_R
+		self.v_phi = v_phi
+		self.v_theta = v_theta
+		self.potential_2D  = potential_2D
+
+		super().__init__(*args, **kwargs)
