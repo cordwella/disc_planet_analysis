@@ -5,8 +5,6 @@ from scipy.integrate import cumulative_trapezoid, solve_ivp
 from scipy.special import iv, ive, kv, kve
 from scipy.interpolate import RegularGridInterpolator
 
-# Implements the analytic solutions for the initial evolution of a gap in a
-# protoplanetary disc as in Cordwell & Rafikov 2024
 
 logger = logging.getLogger(__name__)
 
@@ -17,15 +15,22 @@ def non_local_change_in_density(R, p, q, h, f_dep):
 
     See equation C4 in Cordwell & Rafikov (2024)
 
-    Inputs:
-    - R, input array of locations to evaluate
-    - p, background gradient in surface density (Sigma_0 = R^(-p))
-    - q, background gradient in disc temperature (c_s = c_{s, p} R^(-q) )
-    - h, scale height of the disc at $R = 1$
-    - f_dep, pre-evaluated angular momentum deposition function. Defined as $\partial \F_{dep}/\partial R / \Sigma$
+    Parameters
+    ------------------------------
+        R: 1D numpy array of floats
+            input array of locations to evaluate
+        p: float
+            background gradient in surface density (Sigma_0 = R^(-p))
+        q: float
+            background gradient in disc temperature (c_s = c_{s, p} R^(-q) )
+        h: float
+            scale height of the disc at $R = 1$
+        f_dep: 1D numpy array of floats
+            Angular momentum deposition function. Defined as $\partial \F_{dep}/\partial R / \Sigma$
 
-    Returns:
-    - d\sigma / dt, array with the same shape as R
+    Returns
+    ------------------------------
+        d\sigma / dt: 1D numpy array with the same shape as R
     """
 
     if q == 0.5:
@@ -67,8 +72,26 @@ def get_horseshoe_width(R, phi, vr, vphi,
                         iterations = 100,
                         max_step = 5,
                         background_vphi = None):
+    """
+    Algorithm to find the outer horseshoe width in 2D data. The azimuthal location of the 
+    planet in the provided data must be np.pi
 
-    delR = 0.0005
+    Parameters
+    ---------------
+        R: 1D numpy array of floats
+            Radial grid points
+        phi: 1D numpy array of floats
+            Azimuthal grid points
+        vr: 2D numpy array of floats, shape must be (len(R), len(phi))
+            Radial velocity
+        vphi: 2D numpy array of floats, shape must be (len(R), len(phi))
+            Azimuthal velocity
+
+    Returns
+    --------------
+    horseshoe half width, inner horseshoe radial position, outer horseshoe radial position
+    """
+
     if background_vphi is None:
         background_vphi = R[:, None]**(3/2)
     interp_vr    = RegularGridInterpolator((phi, R), np.swapaxes(vr, 0, 1), bounds_error=False, fill_value=0)
@@ -105,7 +128,6 @@ def get_horseshoe_width(R, phi, vr, vphi,
         if sol.status == 0:
             logger.warning('ERROR: tmax not long enough')
             return 0, 0, 0
-            #raise Exception
 
         # find out where we have ended up by looking at the final (terminal) point
         t_events = sol.t_events
@@ -113,7 +135,6 @@ def get_horseshoe_width(R, phi, vr, vphi,
 
         if t_events[0].size:
             logger.warning('ERROR: hit R bounds')
-            #raise Exception
             return 0, 0, 0
 
         # Have we escaped the horseshoe region?
@@ -122,6 +143,7 @@ def get_horseshoe_width(R, phi, vr, vphi,
 
         if final_position_phi > np.pi * 1.1:
             # We have escaped the horseshoe region
+            logger.info('Horseshoe width found')
             return [(prev_r_final - prev_r)/2, prev_r_final, prev_r]
 
         prev_r = r
